@@ -76,8 +76,11 @@ python3 elmconv.py MyInstrument.exs output/
 ### Install ffmpeg
 
 ```bash
-# macOS
-brew install ffmpeg
+# macOS (requires ffmpeg-full for soxr resampler support)
+brew install ffmpeg-full && brew link --force ffmpeg-full
+
+# If you have standard ffmpeg installed, uninstall it first:
+# brew uninstall ffmpeg
 
 # Ubuntu/Debian
 sudo apt install ffmpeg

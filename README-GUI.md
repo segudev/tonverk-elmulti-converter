@@ -21,7 +21,11 @@ This application requires `ffmpeg` with soxr resampler support for high-quality 
 #### macOS
 
 ```bash
-brew install ffmpeg
+# Requires ffmpeg-full for soxr resampler support
+brew install ffmpeg-full && brew link --force ffmpeg-full
+
+# If you have standard ffmpeg installed, uninstall it first:
+# brew uninstall ffmpeg
 ```
 
 #### Windows

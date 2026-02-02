@@ -76,8 +76,11 @@ python3 elmconv.py MyInstrument.exs output/
 ### ffmpeg のインストール
 
 ```bash
-# macOS
-brew install ffmpeg
+# macOS（soxr リサンプラーのため ffmpeg-full が必要）
+brew install ffmpeg-full && brew link --force ffmpeg-full
+
+# 通常版 ffmpeg がインストール済みの場合は、先にアンインストール:
+# brew uninstall ffmpeg
 
 # Ubuntu/Debian
 sudo apt install ffmpeg
