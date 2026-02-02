@@ -9,7 +9,7 @@ Copyright (c) 2013, vonred (original EXS parsing)
 Copyright (c) 2025, elmconv contributors
 """
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 import argparse
 import glob
@@ -1055,13 +1055,15 @@ def find_sample_file(sample_name, search_dirs):
     return None
 
 
-def convert_to_wav(source_path, dest_path, target_rate=None):
+def convert_to_wav(source_path, dest_path, target_rate=None, trim_start=0, trim_end=0):
     """Convert audio file to WAV using ffmpeg.
 
     Args:
         source_path: Input audio file
         dest_path: Output WAV file
         target_rate: Target sample rate (None = keep original)
+        trim_start: Start sample for extraction (0 = from beginning)
+        trim_end: End sample for extraction (0 = to end, INCLUSIVE)
 
     Returns:
         tuple: (success, original_rate, output_rate)
@@ -1073,11 +1075,30 @@ def convert_to_wav(source_path, dest_path, target_rate=None):
     ffmpeg_cmd = get_ffmpeg_cmd()
     cmd = [ffmpeg_cmd, "-y", "-i", source_path, "-acodec", "pcm_s24le"]
 
+    # Build filter chain
+    filters = []
+
+    # Add trim filter if needed (sample-based extraction from monolith WAV)
+    if trim_start > 0 or trim_end > 0:
+        if trim_end > 0:
+            # atrim end_sample is EXCLUSIVE, SFZ end is INCLUSIVE
+            filters.append(f"atrim=start_sample={trim_start}:end_sample={trim_end + 1}")
+        else:
+            filters.append(f"atrim=start_sample={trim_start}")
+        filters.append("asetpts=PTS-STARTPTS")  # Reset timestamps
+
+    # Add resampling filter if needed
     if target_rate and target_rate != original_rate:
-        cmd.extend(["-ar", str(target_rate), "-af", "aresample=resampler=soxr"])
+        filters.append("aresample=resampler=soxr")
         output_rate = target_rate
     else:
         output_rate = original_rate
+
+    # Apply filters
+    if filters:
+        cmd.extend(["-af", ",".join(filters)])
+    if target_rate and target_rate != original_rate:
+        cmd.extend(["-ar", str(target_rate)])
 
     cmd.append(dest_path)
 
@@ -2195,9 +2216,21 @@ def write_elmulti(
         dest_path = os.path.join(output_dir, new_filename)
 
         if not os.path.exists(dest_path):
+            trim_start = zd.get("trim_start", 0)
+            trim_end = zd.get("trim_end", 0)
+
             success, original_rate, output_rate = convert_to_wav(
-                zd["source_path"], dest_path, target_rate
+                zd["source_path"],
+                dest_path,
+                target_rate,
+                trim_start=trim_start,
+                trim_end=trim_end,
             )
+
+            # Track extraction for later processing
+            zd["was_extracted"] = trim_start > 0 or trim_end > 0
+            zd["extraction_offset"] = trim_start
+
             if success:
                 conversion_stats.total_samples += 1
                 if original_rate != output_rate:
@@ -2214,7 +2247,16 @@ def write_elmulti(
             # Calculate resample ratio
             if accurate_ratio and original_rate != output_rate:
                 # Use actual file lengths for more accurate ratio
-                original_samples = get_sample_count(zd["source_path"])
+                # For extracted regions, use extraction length as original
+                if zd.get("was_extracted", False):
+                    if trim_end > 0:
+                        original_samples = trim_end - trim_start + 1
+                    else:
+                        source_total = get_sample_count(zd["source_path"]) or 0
+                        original_samples = source_total - trim_start
+                else:
+                    original_samples = get_sample_count(zd["source_path"])
+
                 output_samples = get_sample_count(dest_path)
                 if original_samples and output_samples and original_samples > 0:
                     zd["resample_ratio"] = output_samples / original_samples
@@ -2290,7 +2332,8 @@ def write_elmulti(
                 f.write("\n[[key-zones.velocity-layers.sample-slots]]\n")
                 f.write(f"sample = '{zd['new_filename']}'\n")
 
-                # Trim points (only if > 0)
+                # Trim points (only if > 0 and NOT extracted from monolith)
+                # When extracted, the WAV already contains only the relevant portion
                 # Use int() by default, round() with --round-loop-points option
                 convert_func = round if round_loop_points else int
                 trim_start = zd.get("trim_start", 0)
@@ -2300,32 +2343,41 @@ def write_elmulti(
                 wav_path = os.path.join(output_dir, zd["new_filename"])
                 actual_sample_count = get_sample_count(wav_path)
 
-                if trim_start > 0:
-                    f.write(
-                        f"trim-start = {convert_func(trim_start * resample_ratio)}\n"
-                    )
-                if trim_end > 0:
-                    # Validate trim-end: omit if out of bounds (file uses full length)
-                    scaled_trim_end = convert_func(trim_end * resample_ratio)
-                    validated_trim_end, trim_warning = validate_sample_position(
-                        scaled_trim_end, actual_sample_count, can_omit=True
-                    )
-                    if trim_warning:
-                        print(f"    trim-end {trim_warning}")
-                        conversion_stats.add_warning(
-                            zd["new_filename"], f"trim-end {trim_warning}"
+                # Only output trim points if NOT extracted from monolith WAV
+                if not zd.get("was_extracted", False):
+                    if trim_start > 0:
+                        f.write(
+                            f"trim-start = {convert_func(trim_start * resample_ratio)}\n"
                         )
-                    if validated_trim_end > 0:
-                        f.write(f"trim-end = {validated_trim_end}\n")
+                    if trim_end > 0:
+                        # Validate trim-end: omit if out of bounds (file uses full length)
+                        scaled_trim_end = convert_func(trim_end * resample_ratio)
+                        validated_trim_end, trim_warning = validate_sample_position(
+                            scaled_trim_end, actual_sample_count, can_omit=True
+                        )
+                        if trim_warning:
+                            print(f"    trim-end {trim_warning}")
+                            conversion_stats.add_warning(
+                                zd["new_filename"], f"trim-end {trim_warning}"
+                            )
+                        if validated_trim_end > 0:
+                            f.write(f"trim-end = {validated_trim_end}\n")
 
                 if zd["loop"]:
                     f.write("loop-mode = 'Forward'\n")
                     conversion_stats.loops_with_loop += 1
 
+                    # Get extraction offset for monolith WAV (0 if not extracted)
+                    extraction_offset = zd.get("extraction_offset", 0)
+
+                    # Convert absolute loop points to relative (for extracted regions)
+                    relative_loop_start = zd["loop_start"] - extraction_offset
+                    relative_loop_end = zd["loop_end"] - extraction_offset
+
                     # Calculate approximate loop length to determine processing mode
                     # Note: loop_end is INCLUSIVE, so length = end - start + 1
                     approx_loop_length = round(
-                        (zd["loop_end"] - zd["loop_start"] + 1) * resample_ratio
+                        (relative_loop_end - relative_loop_start + 1) * resample_ratio
                     )
 
                     # Check if this is a single-cycle waveform
@@ -2346,8 +2398,8 @@ def write_elmulti(
                             pass
 
                         loop_start, loop_end, warning = calculate_single_cycle_loop(
-                            zd["loop_start"],
-                            zd["loop_end"],
+                            relative_loop_start,
+                            relative_loop_end,
                             resample_ratio,
                             samples,
                         )
@@ -2363,8 +2415,8 @@ def write_elmulti(
                     else:
                         # Normal loop: use standard calculation
                         conversion_stats.loops_normal += 1
-                        loop_start = convert_func(zd["loop_start"] * resample_ratio)
-                        loop_end = convert_func(zd["loop_end"] * resample_ratio)
+                        loop_start = convert_func(relative_loop_start * resample_ratio)
+                        loop_end = convert_func(relative_loop_end * resample_ratio)
 
                         # Optimize loop points if requested (for normal loops only)
                         # Goal: minimize amplitude discontinuity (clicks) at loop boundary

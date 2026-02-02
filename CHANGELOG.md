@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-02-02
+
+### Fixed
+
+- **Monolith WAV extraction for SFZ** - Properly extract individual regions from monolith WAV files
+  - Previously copied the entire WAV for each region (inefficient and broken)
+  - Now uses ffmpeg `atrim` filter to extract only the relevant portion
+  - Loop points are converted to relative positions within extracted WAV
+  - Removes unnecessary `trim-start`/`trim-end` from elmulti output when extracted
+  - Dramatically reduces output file sizes for monolith SFZ instruments
+
 ## [1.2.0] - 2026-01-05
 
 ### Added

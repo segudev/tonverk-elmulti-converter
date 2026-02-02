@@ -4,7 +4,7 @@
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: ISC](https://img.shields.io/badge/License-ISC-green.svg)](LICENSE)
-[![Changelog](https://img.shields.io/badge/changelog-v1.2.0-orange.svg)](CHANGELOG.md)
+[![Changelog](https://img.shields.io/badge/changelog-v1.3.0-orange.svg)](CHANGELOG.md)
 
 Convert your multi-sample instruments to Elektron Tonverk.
 
