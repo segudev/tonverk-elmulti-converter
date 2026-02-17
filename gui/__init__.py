@@ -1,6 +1,6 @@
 """Tonverk Elmulti Converter GUI package."""
 
-__version__ = "1.3.0"
+__version__ = "1.3.1"
 
 from .app import ElmconvApp
 from .strings import Strings
