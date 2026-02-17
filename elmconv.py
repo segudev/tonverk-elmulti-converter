@@ -1549,8 +1549,8 @@ def parse_exs(exs_path):
                 fp = sample.file_path.replace("\\", "/")
                 path_parts = [p for p in fp.split("/") if p]
 
-                # Try last 1-4 directory components as relative path
-                for depth in range(1, min(5, len(path_parts))):
+                # Try last 1-6 directory components as relative path
+                for depth in range(1, min(7, len(path_parts))):
                     rel_subpath = os.path.join(*path_parts[-depth:])
 
                     # Search from EXS directory upward (up to 6 levels)
