@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-02-25
+
+### Fixed
+
+- **SFZ**: Fix parsing error for SFZ files containing `<curve>`, `<effect>`, `<midi>`, or `<sample>` sections
+  - Sforzando (Plogue SF22SFZ Converter) outputs `<curve>` sections for custom velocity curves
+  - Unrecognised section headers leaked into the previous `<region>` opcode values, causing `int()` conversion failures
+  - Now recognises all SFZ v1/v2, ARIA, and LinuxSampler headers: `curve`, `effect`, `effects`, `midi`, `sample`
+
 ## [1.3.1] - 2026-02-17
 
 ### Fixed

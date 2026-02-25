@@ -9,7 +9,7 @@ Copyright (c) 2013, vonred (original EXS parsing)
 Copyright (c) 2025, elmconv contributors
 """
 
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 
 import argparse
 import glob
@@ -1677,8 +1677,12 @@ def parse_sfz(sfz_path):
 
     # Parse headers and opcodes
     # Split by headers while keeping the header names
+    # Includes all SFZ v1/v2, ARIA, and LinuxSampler headers so that
+    # unrecognised sections (curve, effect, midi, sample) are cleanly
+    # separated from <region> text instead of leaking into opcode values.
     header_pattern = re.compile(
-        r"<(control|global|master|group|region)>", re.IGNORECASE
+        r"<(control|global|master|group|region|curve|effect|effects|midi|sample)>",
+        re.IGNORECASE,
     )
     parts = header_pattern.split(content)
 
